@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Daily Routine Tracker</title>
+<style>
+  :root{font-family:system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial;}
+  body{margin:0;background:#f6f7fb;color:#111;display:flex;flex-direction:column;min-height:100vh}
+  header{background:#2b6cb0;color:#fff;padding:18px 16px;display:flex;align-items:center;gap:12px}
+  h1{font-size:18px;margin:0}
+  main{flex:1;padding:12px;max-width:900px;margin:0 auto;width:100%}
+  .card{background:#fff;border-radius:12px;padding:12px;box-shadow:0 6px 18px rgba(16,24,40,0.06);margin-bottom:12px}
+  label{display:block;font-size:13px;margin-bottom:6px}
+  input[type="number"], input[type="date"], textarea{width:100%;box-sizing:border-box;padding:10px;border:1px solid #e6e9ef;border-radius:8px}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .full{grid-column:1/-1}
+  button{background:#2b6cb0;color:#fff;border:0;padding:10px 12px;border-radius:8px;font-weight:600;cursor:pointer}
+  .muted{background:#eef2ff;color:#123}
+  table{width:100%;border-collapse:collapse;margin-top:8px}
+  th,td{padding:8px;border-bottom:1px solid #f0f2f7;text-align:center;font-size:14px}
+  th{background:#fbfdff;position:sticky;top:0}
+  .controls{display:flex;gap:8px;flex-wrap:wrap}
+  .small{padding:8px 10px;font-size:13px}
+  .center{display:flex;align-items:center;gap:8px}
+  footer{padding:10px;text-align:center;font-size:13px;color:#666}
+  @media(max-width:560px){.row{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+  <header>
+    <div style="width:44px;height:44px;background:#fff;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#2b6cb0;font-weight:700">DT</div>
+    <div>
+      <h1>Daily Routine Tracker</h1>
+      <div style="font-size:12px;opacity:.95">Enter minutes → Total & Intensity auto-calc</div>
+    </div>
+  </header>
+
+  <main>
+    <div class="card" id="entryCard">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+        <div style="min-width:180px">
+          <label>Date</label>
+          <input id="date" type="date" />
+        </div>
+        <div style="flex:1"></div>
+        <div class="controls">
+          <button id="saveBtn">Save Entry</button>
+          <button class="small muted" id="newBtn">New Entry</button>
+          <button class="small" id="exportBtn">Export CSV</button>
+          <button class="small" id="clearBtn">Clear All</button>
+        </div>
+      </div>
+
+      <div style="height:12px"></div>
+
+      <div class="row">
+        <div>
+          <label>Course / Study (min)</label>
+          <input id="course" type="number" min="0" placeholder="e.g., 60" />
+        </div>
+        <div>
+          <label>Reading Book (min)</label>
+          <input id="reading" type="number" min="0" placeholder="e.g., 30" />
+        </div>
+        <div>
+          <label>Exercise (min)</label>
+          <input id="exercise" type="number" min="0" placeholder="e.g., 40" />
+        </div>
+        <div>
+          <label>Meditation (min)</label>
+          <input id="meditation" type="number" min="0" placeholder="e.g., 20" />
+        </div>
+
+        <div class="full" style="display:flex;gap:12px;align-items:center">
+          <div style="flex:1">
+            <label>Notes</label>
+            <textarea id="notes" rows="2" placeholder="Optional note..."></textarea>
+          </div>
+          <div style="width:180px">
+            <label>Total Minutes</label>
+            <input id="total" type="text" readonly />
+            <div style="height:8px"></div>
+            <label>Intensity (Total ÷ 4)</label>
+            <input id="intensity" type="text" readonly />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <strong>History</strong>
+        <div style="font-size:13px;color:#666">Saved locally on this device</div>
+      </div>
+      <div style="overflow:auto;margin-top:8px">
+        <table id="historyTable" aria-live="polite">
+          <thead>
+            <tr>
+              <th>Date</th><th>Course</th><th>Reading</th><th>Exercise</th><th>Meditation</th><th>Total</th><th>Intensity</th><th>Notes</th><th>Action</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card center">
+      <div>
+        Tip: Use the browser menu → <strong>Add to Home screen</strong> to save this like an app.
+      </div>
+    </div>
+  </main>
+
+  <footer>Made for quick daily logging • Data stays on your device</footer>
+
+<script>
+(function(){
+  const key = 'dailyTrackerEntries_v1';
+  const $ = id => document.getElementById(id);
+  const dateInput = $('date');
+  const course = $('course'), reading = $('reading'), exercise = $('exercise'), meditation = $('meditation');
+  const total = $('total'), intensity = $('intensity'), notes = $('notes');
+  const saveBtn = $('saveBtn'), newBtn = $('newBtn'), exportBtn = $('exportBtn'), clearBtn = $('clearBtn');
+  const tbody = document.querySelector('#historyTable tbody');
+
+  function todayISO(){
+    const d = new Date();
+    const mm = String(d.getMonth()+1).padStart(2,'0');
+    const dd = String(d.getDate()).padStart(2,'0');
+    return d.getFullYear() + '-' + mm + '-' + dd;
+  }
+  function loadEntries(){ try{ return JSON.parse(localStorage.getItem(key)||'[]') }catch(e){return []} }
+  function saveEntries(arr){ localStorage.setItem(key, JSON.stringify(arr)) }
+  function calcTotals(){
+    const a = Number(course.value)||0;
+    const b = Number(reading.value)||0;
+    const c = Number(exercise.value)||0;
+    const d = Number(meditation.value)||0;
+    const s = a+b+c+d;
+    total.value = s;
+    intensity.value = (s/4).toFixed(1);
+  }
+
+  function render(){
+    const arr = loadEntries();
+    tbody.innerHTML = '';
+    if(!arr.length){
+      tbody.innerHTML = '<tr><td colspan="9" style="padding:14px;color:#666">No entries yet — add one above</td></tr>';
+      return;
+    }
+    arr.slice().reverse().forEach((r, i)=>{
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${r.date}</td>
+        <td>${r.course||0}</td>
+        <td>${r.reading||0}</td>
+        <td>${r.exercise||0}</td>
+        <td>${r.meditation||0}</td>
+        <td>${r.total}</td>
+        <td>${r.intensity}</td>
+        <td style="max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${(r.notes||'')}">${(r.notes||'')}</td>
+        <td><button data-i="${arr.length-1-i}" class="del small">Delete</button></td>
+      `;
+      tbody.appendChild(tr);
+    });
+    Array.from(document.querySelectorAll('.del')).forEach(b=>{
+      b.onclick = ()=>{ 
+        const idx = Number(b.dataset.i);
+        const arr = loadEntries();
+        arr.splice(idx,1);
+        saveEntries(arr);
+        render();
+      }
+    });
+  }
+
+  // init
+  dateInput.value = todayISO();
+  [course,reading,exercise,meditation].forEach(el => el.addEventListener('input', calcTotals));
+  calcTotals();
+  render();
+
+  saveBtn.onclick = ()=>{
+    const d = dateInput.value || todayISO();
+    const a = Number(course.value)||0;
+    const b = Number(reading.value)||0;
+    const c = Number(exercise.value)||0;
+    const e = Number(meditation.value)||0;
+    const s = a+b+c+e;
+    if([a,b,c,e].every(n=>n===0)){
+      if(!confirm('All minutes are zero. Save empty entry?')) return;
+    }
+    const entry = {
+      date: d, course: a, reading: b, exercise: c, meditation: e, total: s, intensity: Number((s/4).toFixed(1)), notes: notes.value||''
+    };
+    const arr = loadEntries();
+    arr.push(entry);
+    saveEntries(arr);
+    course.value = ''; reading.value = ''; exercise.value = ''; meditation.value = ''; notes.value = '';
+    calcTotals();
+    render();
+    alert('Saved ✅');
+  };
+
+  newBtn.onclick = ()=>{
+    dateInput.value = todayISO();
+    course.value = ''; reading.value = ''; exercise.value = ''; meditation.value = ''; notes.value = '';
+    calcTotals();
+    course.focus();
+  };
+
+  exportBtn.onclick = ()=>{
+    const arr = loadEntries();
+    if(!arr.length){ alert('No entries to export'); return; }
+    const header = ['Date','Course (min)','Reading (min)','Exercise (min)','Meditation (min)','Total Minutes','Intensity','Notes'];
+    const csv = [header.join(',')].concat(arr.map(r=>[
+      r.date, r.course, r.reading, r.exercise, r.meditation, r.total, r.intensity, `"${(r.notes||'').replace(/"/g,'""')}"`
+    ].join(','))).join('\n');
+    const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'daily_routine_tracker.csv';
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  clearBtn.onclick = ()=>{
+    if(confirm('Delete all saved entries? This cannot be undone.')) {
+      localStorage.removeItem(key);
+      render();
+    }
+  };
+
+  window.addEventListener('load', ()=>{
+    setTimeout(()=>{
+      if(confirm('Add a new entry for today now?')) course.focus();
+    },500);
+  });
+
+  notes.addEventListener('keydown', (e)=>{ if(e.key==='Enter' && (e.ctrlKey || e.metaKey)) saveBtn.click(); });
+
+})();
+</script>
+</body>
+</html>
